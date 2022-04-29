@@ -1,0 +1,34 @@
+import * as protocol from '../omnisharp/protocol';
+import AbstractProvider from './abstractProvider';
+import { OmniSharpServer } from '../omnisharp/server';
+import { EventStream } from '../EventStream';
+import { LanguageMiddlewareFeature } from '../omnisharp/LanguageMiddlewareFeature';
+import OptionProvider from '../observers/OptionProvider';
+export default class TestManager extends AbstractProvider {
+    private optionProvider;
+    private _runCounts;
+    private _debugCounts;
+    private _telemetryIntervalId;
+    private _eventStream;
+    constructor(optionProvider: OptionProvider, server: OmniSharpServer, eventStream: EventStream, languageMiddlewareFeature: LanguageMiddlewareFeature);
+    private _recordRunRequest;
+    private _recordDebugRequest;
+    private _reportTelemetry;
+    private _saveDirtyFiles;
+    private _runTest;
+    private _recordRunAndGetFrameworkVersion;
+    discoverTests(fileName: string, testFrameworkName: string, noBuild: boolean): Promise<protocol.V2.TestInfo[]>;
+    private _getRunSettings;
+    runDotnetTest(testMethod: string, fileName: string, testFrameworkName: string, noBuild?: boolean): Promise<void>;
+    runDotnetTestsInClass(className: string, methodsInClass: string[], fileName: string, testFrameworkName: string, noBuild?: boolean): Promise<void>;
+    private _runTestsInClass;
+    private _runDotnetTestsInContext;
+    private _createLaunchConfiguration;
+    private _getLaunchConfigurationForVSTest;
+    private _recordDebugAndGetDebugValues;
+    debugDotnetTest(testMethod: string, fileName: string, testFrameworkName: string, noBuild?: boolean): Promise<boolean>;
+    debugDotnetTestsInClass(className: string, methodsToRun: string[], fileName: string, testFrameworkName: string, noBuild?: boolean): Promise<boolean>;
+    private _debugDotnetTestsInContext;
+    private _getLaunchConfigurationForVSTestClass;
+    private _getLaunchConfigurationForVSTestInContext;
+}

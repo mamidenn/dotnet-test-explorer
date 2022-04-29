@@ -1,0 +1,11 @@
+import { OmniSharpServer } from '../omnisharp/server';
+import { LaunchTarget } from '../omnisharp/launcher';
+import * as vscode from 'vscode';
+import { EventStream } from '../EventStream';
+import { PlatformInformation } from '../platform';
+import CompositeDisposable from '../CompositeDisposable';
+import OptionProvider from '../observers/OptionProvider';
+import { IHostExecutableResolver } from '../constants/IHostExecutableResolver';
+export default function registerCommands(context: vscode.ExtensionContext, server: OmniSharpServer, platformInfo: PlatformInformation, eventStream: EventStream, optionProvider: OptionProvider, monoResolver: IHostExecutableResolver, packageJSON: any, extensionPath: string): CompositeDisposable;
+export declare function showProjectSelector(server: OmniSharpServer, targets: LaunchTarget[]): Promise<void>;
+export declare function dotnetRestore(cwd: string, eventStream: EventStream, filePath?: string): Promise<void>;
