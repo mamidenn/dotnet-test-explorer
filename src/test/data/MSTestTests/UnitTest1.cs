@@ -6,7 +6,9 @@ namespace MSTestTests;
 public class UnitTest1
 {
     [TestMethod]
+    [Ignore]
     public void TestMethod1()
     {
+        Assert.Fail();
     }
 }

@@ -4,6 +4,9 @@ import * as vscode from "vscode";
 import CSharpExtensionExports from "./typings/csharp/CSharpExtensionExports";
 import { BaseEvent } from "./typings/csharp/omnisharp/loggingEvents";
 import TestManager from "./typings/csharp/features/dotnetTest";
+import { ReactiveClient } from "omnisharp-client";
+import { EventStream } from "./typings/csharp/EventStream";
+import { discoverTests } from "./typings/csharp/omnisharp/utils";
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -23,11 +26,15 @@ export async function activate(context: vscode.ExtensionContext) {
     Promise<CSharpExtensionExports>
   >("ms-dotnettools.csharp");
 
-  if (!csharp || !csharp.isActive) {
+  if (!csharp) {
     return;
   }
+  await csharp?.activate();
+  const exports = await csharp.exports;
+  await exports.initializationFinished();
 
-  const testManager = await (await csharp.exports).getTestManager();
+  const testManager = await exports.getTestManager();
+  const eventStream = exports.eventStream;
 
   controller.refreshHandler = async () => {
     await Promise.all(
@@ -37,21 +44,75 @@ export async function activate(context: vscode.ExtensionContext) {
     );
   };
 
-  // The command has been defined in the package.json file
-  // Now provide the implementation of the command with registerCommand
-  // The commandId parameter must match the command field in package.json
-  let disposable = vscode.commands.registerCommand(
-    "dotnet-test-explorer.helloWorld",
-    async () => {
-      // The code you place here will be executed every time your command is executed
-      // Display a message box to the user
-      vscode.window.showInformationMessage(
-        "Hello World from .Net Test Explorer!"
-      );
-    }
-  );
+  const runHandler = async (
+    request: vscode.TestRunRequest,
+    eventStream: EventStream,
+    token: vscode.CancellationToken
+  ) => {
+    const queue: { test: vscode.TestItem }[] = [];
+    const run = controller.createTestRun(request);
 
-  context.subscriptions.push(disposable);
+    const enqueueTests = async (tests: Iterable<vscode.TestItem>) => {
+      for (const test of tests) {
+        if (request.exclude?.includes(test)) {
+          continue;
+        }
+        queue.push({ test });
+        run.enqueued(test);
+      }
+    };
+
+    const runTestQueue = async () => {
+      for (const { test } of queue) {
+        run.appendOutput(`Running ${test.id}`);
+        if (token.isCancellationRequested) {
+          run.skipped(test);
+        } else {
+          const sub = eventStream.subscribe((e: any) => {
+            // TODO any
+            switch (e.type) {
+              case 29: // EventType.ReportDotNetTestResults:
+                for (const result of e.results) {
+                  switch (result.Outcome) {
+                    case "passed":
+                      run.passed(test);
+                      break;
+                    case "failed":
+                      run.failed(
+                        test,
+                        new vscode.TestMessage(result.ErrorMessage)
+                      );
+                      break;
+                    case "skipped":
+                      run.skipped(test);
+                      break;
+                  }
+                }
+              case 59: //EventType.DotNetTestRunFailure:
+                console.log(e);
+                break;
+            }
+          });
+          run.started(test);
+          await testManager.runDotnetTest(test.id, test.uri!.fsPath, "nunit");
+
+          sub.unsubscribe();
+        }
+        run.appendOutput(`Completed ${test.id}`);
+      }
+      run.end();
+    };
+
+    await enqueueTests(request.include ?? getIncluded(controller.items));
+    runTestQueue();
+  };
+
+  controller.createRunProfile(
+    "Run Tests",
+    vscode.TestRunProfileKind.Run,
+    (request, token) => runHandler(request, eventStream, token),
+    true
+  );
 }
 
 const getWorkspaceTestPatterns = () => {
@@ -78,9 +139,16 @@ const findInitialFiles = async (
     tests.forEach((t) => {
       const item = controller.createTestItem(
         t.FullyQualifiedName,
-        t.DisplayName
+        t.DisplayName,
+        vscode.Uri.file(t.CodeFilePath)
       );
+      item.range = new vscode.Range(t.LineNumber, 0, t.LineNumber, 1);
       controller.items.add(item);
     });
   }
 };
+function getIncluded(items: vscode.TestItemCollection): vscode.TestItem[] {
+  const result: vscode.TestItem[] = [];
+  items.forEach((i) => result.push(i));
+  return result;
+}
